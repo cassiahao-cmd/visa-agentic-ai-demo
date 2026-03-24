@@ -1,0 +1,2381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visa Flow - 零工管理平台</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fade-in 0.3s ease-out forwards',
+                        'scale-in': 'scale-in 0.2s ease-out forwards',
+                        'bounce-short': 'bounce-short 1s ease-in-out 1',
+                        'shimmer': 'shimmer 2s infinite'
+                    },
+                    keyframes: {
+                        'fade-in': {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        },
+                        'scale-in': {
+                            '0%': { transform: 'scale(0.9)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        },
+                        'bounce-short': {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' }
+                        },
+                        'shimmer': {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 引入 Import Map 以支持 ES Modules 形式导入 React 和图标 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+            }
+        }
+    </script>
+    
+    <!-- 引入 Babel 实时编译 TypeScript 和 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #F8FAFC; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module" data-presets="react,typescript">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+          LayoutDashboard, 
+          Wallet, 
+          CalendarClock, 
+          LogOut, 
+          Bell, 
+          Settings, 
+          ChevronRight, 
+          TrendingUp, 
+          Zap, 
+          Award,
+          CreditCard,
+          CheckCircle2, 
+          AlertCircle, 
+          Sun, 
+          Users, 
+          Calendar, 
+          ArrowUpRight, 
+          Plus, 
+          Clock, 
+          Edit2, 
+          Trash2, 
+          DollarSign, 
+          ArrowLeft, 
+          FileText, 
+          Filter, 
+          ArrowUpDown, 
+          Check, 
+          Coffee, 
+          Briefcase, 
+          X, 
+          Bot, 
+          MessageSquare, 
+          Send, 
+          MoreHorizontal, 
+          CloudRain, 
+          Thermometer, 
+          MapPin, 
+          Umbrella, 
+          Info, 
+          Power, 
+          XCircle, 
+          Trophy, 
+          Star, 
+          Gift, 
+          Lock, 
+          Crown, 
+          Fuel, 
+          AlertTriangle, 
+          ShoppingBag, 
+          Eye, 
+          Sparkles,
+          EyeOff
+        } from 'lucide-react';
+
+        // --- 1. 类型定义 ---
+
+        type Task = {
+          id: string;
+          title: string;
+          status: 'active' | 'completed';
+          subtitle?: string;
+          targetAmount: number;
+          currentAmount: number;
+          theme: 'green' | 'blue' | 'purple' | 'red'; 
+          isUrgent?: boolean; 
+          workPlan: { 
+            platform: string; 
+            hours: number; 
+            earning: number; 
+            color: string;
+            type: 'scheduled' | 'recommended'; 
+          }[];
+          bonus?: { text: string; xp: number };
+          insight?: string;
+        };
+
+        type Bill = {
+          id: string;
+          name: string;
+          provider: string;
+          amount: number;
+          dueDate?: string; 
+          daysLeft?: number;
+          status: 'paid' | 'pending' | 'overdue';
+          autoPay: boolean;
+          aiSuggestion?: string;
+          aiTheme?: 'blue' | 'green' | 'purple' | 'red';
+          paymentDate?: string;
+          paymentMethod?: string;
+          billType?: string;
+          nextBill?: string;
+          accountStatus?: string;
+        };
+
+        type Shift = {
+          id: string;
+          platform: string;
+          logoBg: string; 
+          isPeak: boolean;
+          confidence: number;
+          date: string; 
+          time: string; 
+          tags: string[]; 
+          amount: number;
+          hours: number;
+          bonusPoints: number;
+          selected?: boolean;
+        };
+
+        type Platform = {
+          id: string;
+          name: string;
+          updateFreq: string;
+          avgEarning: number;
+          period: string; 
+          logoBg: string;
+        };
+
+        type ChatMessage = {
+          id: string;
+          sender: 'user' | 'bot';
+          text?: string;
+          type: 'text' | 'action' | 'success';
+          actionData?: {
+            title: string;
+            amount: number;
+            daysLeft: number;
+            billId: string;
+          };
+          timestamp: Date;
+        };
+
+        type ScheduledShiftDetail = {
+          id: string;
+          date: string;
+          time: string;
+          amount: number;
+          hours: number;
+          tags?: string[];
+        };
+
+        // --- 2. 初始数据常量 ---
+
+        const INITIAL_TASKS: Task[] = [
+          {
+            id: 't1',
+            title: '支付本周账单',
+            status: 'active',
+            subtitle: '话费 ($75) + 电费 ($95) = $170',
+            targetAmount: 170, 
+            currentAmount: 120, 
+            theme: 'green',
+            workPlan: [
+              { platform: 'Uber', hours: 4, earning: 112, color: 'bg-black text-white', type: 'scheduled' },
+              { platform: 'DoorDash', hours: 2, earning: 56, color: 'bg-red-600 text-white', type: 'recommended' }
+            ],
+            bonus: { text: '奖励', xp: 250 },
+            insight: '周五 5-9pm: 收入 +23%'
+          },
+          {
+            id: 't2',
+            title: '建立应急基金',
+            status: 'active',
+            subtitle: '再存 $175 达到 $500 目标',
+            targetAmount: 500,
+            currentAmount: 325,
+            theme: 'blue',
+            workPlan: [
+              { platform: 'DoorDash', hours: 5, earning: 140, color: 'bg-red-600 text-white', type: 'scheduled' },
+              { platform: 'Uber', hours: 4, earning: 112, color: 'bg-black text-white', type: 'recommended' }
+            ],
+            bonus: { text: '奖励', xp: 500 },
+            insight: '月初第一周: 收入 +18%'
+          },
+          {
+            id: 't3',
+            title: '还清信用卡余额',
+            status: 'active',
+            subtitle: '剩余 $180 以避免利息费用',
+            targetAmount: 300,
+            currentAmount: 120,
+            theme: 'purple',
+            workPlan: [
+              { platform: 'Uber', hours: 6, earning: 168, color: 'bg-black text-white', type: 'scheduled' },
+              { platform: 'Instacart', hours: 4, earning: 112, color: 'bg-orange-500 text-white', type: 'recommended' }
+            ],
+            bonus: { text: '奖励', xp: 300 },
+            insight: '周末午餐时间: 小费 +18%'
+          }
+        ];
+
+        const URGENT_TASK: Task = {
+          id: 't_urgent',
+          title: '🚨 紧急：填补资金缺口',
+          status: 'active',
+          subtitle: '车贷将在 3 天后到期，目前缺口 $315',
+          targetAmount: 315,
+          currentAmount: 0,
+          theme: 'red',
+          isUrgent: true,
+          workPlan: [
+            { platform: 'Uber', hours: 6, earning: 180, color: 'bg-black text-white', type: 'recommended' },
+            { platform: 'Instacart', hours: 5, earning: 135, color: 'bg-orange-500 text-white', type: 'recommended' }
+          ],
+          bonus: { text: '急救金', xp: 1000 },
+          insight: '建议立即接单：Uber 此时段溢价 1.5x'
+        };
+
+        const INITIAL_BILLS: Bill[] = [
+          {
+            id: 'b1',
+            name: '房租',
+            provider: '物业管理公司',
+            amount: 1200.00,
+            status: 'paid',
+            autoPay: true, 
+            dueDate: '每月 1 日到期',
+            paymentDate: '11月 1 日',
+            paymentMethod: '自动扣款',
+            billType: '定期账单',
+            nextBill: '下月',
+            accountStatus: '正常'
+          },
+          {
+            id: 'b2',
+            name: '话费',
+            provider: 'T-Mobile',
+            amount: 75.00,
+            dueDate: '11月 10日',
+            daysLeft: 1,
+            status: 'pending',
+            autoPay: false,
+            aiSuggestion: '即将在期，余额充足可安全支付',
+            aiTheme: 'blue'
+          },
+          {
+            id: 'b3',
+            name: '车贷',
+            provider: '汽车金融',
+            amount: 385.00,
+            dueDate: '11月 15日',
+            daysLeft: 3, 
+            status: 'pending',
+            autoPay: true,
+            aiSuggestion: '余额充足，已安排自动支付',
+            aiTheme: 'green'
+          },
+          {
+            id: 'b4',
+            name: '电费',
+            provider: '电力公司',
+            amount: 95.00,
+            dueDate: '11月 16日',
+            daysLeft: 4,
+            status: 'pending',
+            autoPay: true,
+            aiSuggestion: '余额充足，已安排自动支付',
+            aiTheme: 'green'
+          },
+          {
+            id: 'b5',
+            name: '保险',
+            provider: 'State Farm',
+            amount: 145.00,
+            dueDate: '11月 20日',
+            daysLeft: 11,
+            status: 'pending',
+            autoPay: true,
+            aiSuggestion: '余额充足，无需担心',
+            aiTheme: 'green'
+          }
+        ];
+
+        const INITIAL_SHIFTS: Shift[] = [
+          {
+            id: 's1',
+            platform: 'Uber',
+            logoBg: 'bg-black text-white',
+            isPeak: true,
+            confidence: 92,
+            date: '今天',
+            time: '下午 6:00 - 晚上 10:00',
+            tags: ['晚餐高峰', '需求旺盛'],
+            amount: 112,
+            hours: 4,
+            bonusPoints: 100,
+            selected: false
+          },
+          {
+            id: 's2',
+            platform: 'DoorDash',
+            logoBg: 'bg-red-600 text-white',
+            isPeak: true,
+            confidence: 88,
+            date: '明天',
+            time: '上午 11:00 - 下午 2:00',
+            tags: ['午餐高峰', '订单稳定'],
+            amount: 84,
+            hours: 3,
+            bonusPoints: 100,
+            selected: false
+          },
+          {
+            id: 's3',
+            platform: 'Uber',
+            logoBg: 'bg-black text-white',
+            isPeak: true,
+            confidence: 90,
+            date: '明天',
+            time: '晚上 7:00 - 晚上 11:00',
+            tags: ['周末晚间', '溢价时段'],
+            amount: 112,
+            hours: 4,
+            bonusPoints: 100,
+            selected: false
+          },
+          {
+            id: 's4',
+            platform: 'Instacart',
+            logoBg: 'bg-orange-500 text-white',
+            isPeak: false,
+            confidence: 95,
+            date: '周六',
+            time: '上午 8:00 - 下午 1:00',
+            tags: ['周末大采购', '高单价'],
+            amount: 135, 
+            hours: 5,    
+            bonusPoints: 120,
+            selected: false
+          },
+          {
+            id: 's5',
+            platform: 'DoorDash',
+            logoBg: 'bg-red-600 text-white',
+            isPeak: false,
+            confidence: 82,
+            date: '周日',
+            time: '下午 2:00 - 下午 5:00',
+            tags: ['下午茶时段'],
+            amount: 65,
+            hours: 3,
+            bonusPoints: 50,
+            selected: false
+          },
+          {
+            id: 's6',
+            platform: 'Uber',
+            logoBg: 'bg-black text-white',
+            isPeak: true,
+            confidence: 98,
+            date: '周六',
+            time: '下午 6:00 - 凌晨 12:00',
+            tags: ['周六夜狂欢', '极高溢价'],
+            amount: 180, 
+            hours: 6,    
+            bonusPoints: 200,
+            selected: false
+          }
+        ];
+
+        const CONNECTED_PLATFORMS: Platform[] = [
+          { id: 'p1', name: 'Uber', updateFreq: '每周更新', avgEarning: 850, period: '周均收入', logoBg: 'bg-[#1e255e]' },
+          { id: 'p2', name: 'DoorDash', updateFreq: '每周更新', avgEarning: 480, period: '周均收入', logoBg: 'bg-[#1e255e]' },
+          { id: 'p3', name: 'Instacart', updateFreq: '每两周更新', avgEarning: 320, period: '周均收入', logoBg: 'bg-[#1e255e]' }
+        ];
+
+        // --- 3. 基础组件 ---
+
+        const NavItem = ({ icon, label, active = false, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) => (
+          <button 
+            onClick={onClick}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              active 
+                ? 'bg-[#1e255e] text-white shadow-md shadow-blue-900/20' 
+                : 'text-slate-500 hover:bg-gray-50 hover:text-slate-900'
+            }`}
+          >
+            {icon}
+            {label}
+          </button>
+        );
+
+        const Sidebar = ({ currentView, onChangeView }: { currentView: string, onChangeView: (view: any) => void }) => (
+          <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen fixed left-0 top-0 z-20">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-8 h-8 bg-[#1434CB] rounded-lg flex items-center justify-center text-white font-bold text-xs">
+                  V
+                </div>
+                <div>
+                  <h1 className="font-bold text-slate-900 text-lg leading-tight">Visa Flow</h1>
+                  <p className="text-xs text-slate-500">零工管理平台</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-4 text-white shadow-lg shadow-orange-200 mb-8">
+                <div className="text-xs font-medium opacity-90 mb-1">Visa 奖励积分</div>
+                <div className="text-2xl font-bold mb-1">2,450 积分</div>
+                <div className="text-xs opacity-80">≈ $25 价值</div>
+              </div>
+
+              <nav className="space-y-1">
+                <NavItem 
+                  icon={<LayoutDashboard size={20} />} 
+                  label="控制台" 
+                  active={currentView === 'dashboard'} 
+                  onClick={() => onChangeView('dashboard')}
+                />
+                <NavItem 
+                  icon={<Wallet size={20} />} 
+                  label="支出日程" 
+                  active={currentView === 'expenses' || currentView === 'bill-details'}
+                  onClick={() => onChangeView('expenses')}
+                />
+                <NavItem 
+                  icon={<CalendarClock size={20} />} 
+                  label="班次规划" 
+                  active={currentView === 'shift-planning'}
+                  onClick={() => onChangeView('shift-planning')}
+                />
+                <NavItem 
+                  icon={<Award size={20} />} 
+                  label="成就中心" 
+                  active={currentView === 'achievements'}
+                  onClick={() => onChangeView('achievements')}
+                />
+              </nav>
+            </div>
+
+            <div className="mt-auto p-6 border-t border-gray-100">
+              <div className="flex items-center gap-3 mb-4 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs">
+                  JD
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-slate-900">John Doe</div>
+                  <div className="text-xs text-slate-500">零工工作者</div>
+                </div>
+                <Settings size={16} className="text-slate-400" />
+              </div>
+              <button className="flex items-center gap-2 text-slate-500 text-sm hover:text-red-600 transition-colors w-full px-2">
+                <LogOut size={16} />
+                <span>退出登录</span>
+              </button>
+            </div>
+          </div>
+        );
+
+        const StatCard = ({ label, value, subtext, icon, colorClass, variant = 'normal' }: { label: string, value: string, subtext: string, icon: any, colorClass: string, variant?: 'normal' | 'danger' }) => (
+          <div className={`p-5 rounded-2xl border shadow-sm transition-shadow ${variant === 'danger' ? 'bg-red-50 border-red-100' : 'bg-white border-gray-100 hover:shadow-md'}`}>
+            <div className="flex justify-between items-start mb-3">
+              <span className={`text-sm font-medium ${variant === 'danger' ? 'text-red-700' : 'text-slate-500'}`}>{label}</span>
+              <div className={`p-1.5 rounded-lg ${variant === 'danger' ? 'bg-red-100 text-red-600' : colorClass}`}>{icon}</div>
+            </div>
+            <div className={`text-2xl font-bold mb-1 ${variant === 'danger' ? 'text-red-700' : 'text-slate-900'}`}>{value}</div>
+            <div className={`text-xs ${variant === 'danger' ? 'text-red-500 font-medium' : 'text-slate-400'}`}>{subtext}</div>
+          </div>
+        );
+
+        const Toast = ({ message, visible, type = 'success' }: { message: string; visible: boolean; type?: 'success' | 'default' }) => (
+          <div className={`fixed bottom-6 right-24 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300 z-[60] border border-slate-800 transform ${visible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${type === 'success' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                {type === 'success' ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}
+            </div>
+            <span className="font-bold text-sm tracking-wide">{message}</span>
+          </div>
+        );
+
+        const CriticalAlert = ({ message = "检测到您的车贷账单 ($385) 将在 3 天后到期，但当前余额不足。建议您通过推荐的“紧急任务”来填补缺口。", onAction }: { message?: string, onAction?: () => void }) => (
+          <div className="mb-6 bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-4 animate-fade-in shadow-sm">
+            <div className="bg-red-100 p-2 rounded-full text-red-600 shrink-0 mt-0.5">
+              <AlertTriangle size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-red-800 mb-1">资金缺口预警：$315</h3>
+              <p className="text-xs text-red-700 leading-relaxed">
+                {message}
+              </p>
+            </div>
+            <button 
+              onClick={onAction}
+              className="bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow-red-200 shadow-md whitespace-nowrap"
+            >
+              查看方案
+            </button>
+          </div>
+        );
+
+        // --- 4. 业务小组件 ---
+
+        const BillItem = ({ bill, onToggleAutoPay }: { bill: Bill; onToggleAutoPay?: (id: string) => void }) => {
+          const isPaid = bill.status === 'paid';
+          const suggestionThemes = {
+            blue: "bg-blue-50 border-blue-100 text-blue-700",
+            green: "bg-emerald-50 border-emerald-100 text-emerald-700",
+            purple: "bg-purple-50 border-purple-100 text-purple-700",
+            red: "bg-red-50 border-red-100 text-red-700 animate-pulse" 
+          };
+          const currentThemeClass = suggestionThemes[bill.aiTheme || 'blue'];
+          return (
+            <div className={`bg-white rounded-xl border border-gray-100 p-6 mb-4 hover:shadow-sm transition-shadow ${bill.aiTheme === 'red' ? 'ring-1 ring-red-100' : ''}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div><h3 className="text-lg font-bold text-slate-900">{bill.name}</h3><p className="text-sm text-slate-500">{bill.provider}</p></div>
+                <div className="text-right"><div className="text-lg font-bold text-slate-900">${bill.amount.toFixed(2)}</div><div className="text-xs text-slate-400">每月</div></div>
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                {isPaid ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200"><CheckCircle2 size={12} /><span className="mt-0.5">本月已完成</span></div>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100"><Clock size={12} /><span className="mt-0.5">{bill.daysLeft} 天后到期</span></div>
+                )}
+              </div>
+              {bill.aiSuggestion && !isPaid && (
+                <div className={`mb-4 p-3 rounded-lg border text-xs font-medium ${currentThemeClass}`}>
+                    <span className="font-bold mr-1">AI 建议</span>{bill.aiSuggestion}
+                </div>
+              )}
+              {onToggleAutoPay && (
+                <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2 cursor-pointer group" onClick={() => onToggleAutoPay(bill.id)}>
+                        <div className={`w-9 h-5 rounded-full relative transition-colors duration-200 ${bill.autoPay ? 'bg-[#1e255e]' : 'bg-slate-200'}`}>
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-200 shadow-sm ${bill.autoPay ? 'left-5' : 'left-1'}`}></div>
+                        </div>
+                        <span className={`text-xs font-bold transition-colors ${bill.autoPay ? 'text-[#1e255e]' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                            {bill.autoPay ? '已开启 AI 自动支付' : '开启 AI 自动支付'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <button className="p-2 rounded-lg text-slate-400 hover:text-[#1e255e] hover:bg-blue-50 transition-all group" title="编辑"><Edit2 size={15} /></button>
+                        <button className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all group" title="删除"><Trash2 size={15} /></button>
+                    </div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const DetailedBillCard = ({ bill }: { bill: Bill }) => {
+          if (!bill) return null;
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm animate-fade-in">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex gap-4">
+                     <div className="bg-emerald-100 p-2.5 rounded-full h-fit text-emerald-600"><CheckCircle2 size={24} /></div>
+                     <div><div className="flex items-center gap-2 mb-1"><h3 className="text-xl font-bold text-slate-900">{bill.name}</h3><span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full border border-emerald-200">已支付</span></div><p className="text-slate-500">{bill.provider}</p><div className="flex items-center gap-2 mt-2 text-sm text-slate-600"><Calendar size={14} /><span>{bill.dueDate}</span><span className="text-emerald-600 flex items-center gap-1 font-medium bg-emerald-50 px-2 rounded"><Check size={12} /> 已于 {bill.paymentDate || '最近'} 支付</span></div></div>
+                  </div>
+                  <div className="text-right"><div className="text-2xl font-bold text-slate-900">${bill.amount.toFixed(2)}</div><div className="text-xs text-slate-400">每月</div></div>
+                </div>
+                <div className="grid grid-cols-4 gap-4 py-6 border-t border-gray-100 border-b">
+                  <div><div className="text-xs text-slate-400 mb-1">支付方式</div><div className="text-sm font-medium text-slate-900">{bill.paymentMethod || '自动扣款'}</div></div>
+                  <div><div className="text-xs text-slate-400 mb-1">账单类型</div><div className="text-sm font-medium text-slate-900">{bill.billType || '定期账单'}</div></div>
+                  <div><div className="text-xs text-slate-400 mb-1">下次账单</div><div className="text-sm font-medium text-slate-900">{bill.nextBill || '下月'}</div></div>
+                   <div><div className="text-xs text-slate-400 mb-1">状态</div><div className="text-sm font-bold text-emerald-600">{bill.accountStatus || '正常'}</div></div>
+                </div>
+              </div>
+              <div className="bg-emerald-50 px-6 py-4 flex items-center justify-between"><div className="flex items-center gap-2 text-emerald-800 text-sm font-bold"><CheckCircle2 size={16} className="text-emerald-600" /> 已成功支付 · 获得 50 积分奖励</div><button className="text-emerald-700 text-sm font-bold flex items-center gap-1 hover:text-emerald-900 transition-colors"><FileText size={16} /> 查看收据</button></div>
+            </div>
+          );
+        };
+
+        const BillSummaryCard = ({ label, count, amount, status, active, onClick }: { label: string, count: number, amount?: string, status: string, active: boolean, onClick: () => void }) => {
+          const styles: Record<string, string> = {
+            all: "border-gray-200 text-slate-600",
+            paid: "border-emerald-100 bg-emerald-50 text-emerald-700",
+            pending: "border-amber-100 bg-amber-50 text-amber-700",
+            overdue: "border-red-100 bg-red-50 text-red-700"
+          };
+          const iconMap: Record<string, JSX.Element> = {
+            all: <FileText size={18} className="text-slate-400" />,
+            paid: <CheckCircle2 size={18} className="text-emerald-500" />,
+            pending: <Clock size={18} className="text-amber-500" />,
+            overdue: <AlertCircle size={18} className="text-red-500" />
+          };
+          return (
+            <div 
+              onClick={onClick}
+              className={`p-4 rounded-xl border ${active ? 'ring-2 ring-offset-1 ring-blue-500' : ''} ${styles[status] || styles.all} bg-white transition-all cursor-pointer hover:shadow-md`}
+            >
+              <div className="flex justify-between items-start mb-3"><span className="font-bold text-sm">{label}</span>{iconMap[status]}</div>
+              <div className="text-2xl font-bold mb-1">{count} <span className="text-xs font-normal opacity-70">笔</span></div>
+              {amount && <div className="text-xs font-medium opacity-80">{amount}</div>}
+            </div>
+          );
+        };
+
+        const TaskCard = ({ task, onPlanClick }: { task: Task, onPlanClick: (platform: string, type: 'scheduled' | 'recommended', isUrgent?: boolean, amount?: number) => void }) => {
+           const progressPercent = Math.min((task.currentAmount / task.targetAmount) * 100, 100);
+           const themeColors = {
+            green: { bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+            blue: { bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-100' },
+            purple: { bg: 'bg-purple-50', border: 'border-purple-100', bar: 'bg-purple-500', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-100' },
+            red: { bg: 'bg-red-50', border: 'border-red-200', bar: 'bg-red-500', text: 'text-red-700', badge: 'bg-red-100 text-red-700 animate-pulse' },
+          };
+          const theme = themeColors[task.theme] || themeColors.blue;
+          
+          return (
+            <div className={`bg-white rounded-2xl border ${theme.border} p-5 shadow-sm relative overflow-hidden transition-all hover:shadow-md ${task.isUrgent ? 'ring-2 ring-red-500/10' : ''}`}> 
+              <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bar}`}></div>
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className={`text-lg font-bold ${task.isUrgent ? 'text-red-700' : 'text-slate-900'}`}>{task.title}</h3>
+                  </div>
+                  {task.subtitle && <p className={`text-sm ${task.isUrgent ? 'text-red-600/80' : 'text-slate-500'}`}>{task.subtitle}</p>}
+                </div>
+                <div className="text-right">
+                  <div className={`text-xs mb-1 ${task.isUrgent ? 'text-red-500 font-medium' : 'text-slate-400'}`}>目标 ${task.targetAmount}</div>
+                  {task.bonus && <div className={`${task.isUrgent ? 'bg-red-500' : 'bg-amber-400'} text-white text-xs font-bold px-2 py-1 rounded shadow-sm`}>+{task.bonus.xp} XP</div>}
+                </div>
+              </div>
+              <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden mb-2">
+                  <div className={`h-full ${theme.bar} rounded-full`} style={{ width: `${progressPercent}%` }}></div>
+              </div>
+              <div className="flex justify-between text-xs font-medium mb-4">
+                  <span className="text-slate-700">已赚取 ${task.currentAmount}</span>
+                  <span className="text-slate-400">需要 ${task.targetAmount}</span>
+              </div>
+
+              {task.workPlan && task.workPlan.length > 0 && (
+                <div className={`mt-4 pt-4 border-t border-dashed ${task.isUrgent ? 'border-red-100' : 'border-gray-100/80'}`}>
+                   <div className="flex items-center gap-2 mb-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${task.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-50 text-slate-500'}`}>
+                         <ArrowUpRight size={12} />
+                      </div>
+                      <span className={`text-xs font-bold tracking-tight ${task.isUrgent ? 'text-red-700' : 'text-slate-700'}`}>达成目标计划</span>
+                   </div>
+                   
+                   <div className="grid grid-cols-2 gap-3">
+                      {task.workPlan.map((plan, i) => (
+                         <div 
+                           key={i} 
+                           onClick={() => onPlanClick(plan.platform, plan.type, task.isUrgent, plan.earning)}
+                           className={`flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]`}
+                         >
+                            <div className="flex items-center gap-2.5">
+                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shadow-sm transition-transform group-hover:scale-105 flex-shrink-0 ${plan.color}`}>
+                                  {plan.platform[0]}
+                               </div>
+                               <div className="min-w-0">
+                                  <div className="text-xs font-bold text-slate-900 leading-tight truncate">{plan.platform}</div>
+                                  <div className="text-[10px] font-medium text-slate-500 mt-0.5 truncate">{plan.hours}h 工作</div>
+                               </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                               <div className={`text-[10px] font-bold mb-0.5 ${plan.type === 'scheduled' ? 'text-blue-600' : 'text-amber-600'}`}>
+                                  {plan.type === 'scheduled' ? '已排班' : 'AI推荐'}
+                               </div>
+                               <div className="text-xs font-bold text-slate-900">+${plan.earning}</div>
+                            </div>
+                         </div>
+                      ))}
+                   </div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const AICard = ({ className = "", isLowBalance = false }: { className?: string, isLowBalance?: boolean }) => (
+          <div className={`bg-white rounded-2xl border border-gray-200 p-6 shadow-sm h-full flex flex-col ${className}`}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl shadow-lg ${isLowBalance ? 'bg-red-600 shadow-red-200' : 'bg-gradient-to-br from-[#1e255e] to-[#3a4b8a] shadow-blue-900/20'}`}>
+                  {isLowBalance ? <AlertTriangle className="text-white w-5 h-5" /> : <Bot className="text-white w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">AI 财务智能</h3>
+                  <p className={`text-[11px] font-medium uppercase tracking-wider ${isLowBalance ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
+                    {isLowBalance ? '⚠️ 现金流风险' : '实时分析中'}
+                  </p>
+                </div>
+              </div>
+              <button className="text-slate-400 hover:text-[#1e255e] transition-colors"><MoreHorizontal size={20} /></button>
+            </div>
+
+            <div className="flex items-center gap-6 mb-8">
+              <div className="relative w-24 h-24 flex-shrink-0">
+                 <svg className="w-full h-full transform -rotate-90">
+                   <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
+                   <circle 
+                        cx="48" cy="48" r="40" 
+                        stroke="currentColor" 
+                        strokeWidth="8" 
+                        fill="transparent" 
+                        strokeDasharray="251.2" 
+                        strokeDashoffset={251.2 * (1 - (isLowBalance ? 0.45 : 0.78))} 
+                        className={isLowBalance ? "text-red-500" : "text-[#1e255e]"} 
+                        strokeLinecap="round" 
+                    />
+                 </svg>
+                 <div className="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
+                    <span className={`text-2xl font-bold ${isLowBalance ? 'text-red-600' : 'text-[#1e255e]'}`}>
+                        {isLowBalance ? '45' : '78'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">总分</span>
+                 </div>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">{isLowBalance ? '财务状况需关注' : '财务健康状况良好'}</h4>
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                    {isLowBalance ? '检测到即期账单缺口，建议优先处理高优先级任务。' : '您的支出比上月减少了 12%，储蓄率有所提升。'}
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                   {isLowBalance ? (
+                        <>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-[10px] font-bold border border-red-100"><AlertCircle size={10} /> 余额不足</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100"><Clock size={10} /> 账单临近</span>
+                        </>
+                   ) : (
+                        <>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-700 text-[10px] font-bold border border-green-100"><TrendingUp size={10} /> 收入稳定</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100"><Wallet size={10} /> 储蓄增加</span>
+                        </>
+                   )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 flex-1">
+               <h5 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                 <Zap size={12} className="text-amber-500 fill-current" /> 
+                 智能洞察
+               </h5>
+               
+               <div className="group p-4 rounded-xl border border-gray-100 bg-gradient-to-r from-slate-50 to-white hover:border-blue-200 hover:shadow-md transition-all cursor-pointer relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                     <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                        <span className="text-xs font-bold text-slate-700">收入机会</span>
+                     </div>
+                     <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">高置信度</span>
+                  </div>
+                  <div className="flex items-end gap-3 mb-1">
+                     <div className="flex-1 space-y-1">
+                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                           <div className="h-full bg-blue-500 w-[70%]"></div>
+                        </div>
+                     </div>
+                     <span className="text-xs font-bold text-slate-900">+$45</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-normal">本周五晚间 Uber 需求预计激增 40%。</p>
+               </div>
+
+               <div className="group p-4 rounded-xl border border-gray-100 bg-gradient-to-r from-slate-50 to-white hover:border-amber-200 hover:shadow-md transition-all cursor-pointer relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/5 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                     <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                        <span className="text-xs font-bold text-slate-700">异常支出监测</span>
+                     </div>
+                     <ArrowUpRight size={12} className="text-slate-300 group-hover:text-amber-500 transition-colors" />
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-normal mb-2">检测到订阅费用比平均水平高出 15%。</p>
+                  <div className="flex items-center gap-2">
+                     <button className="text-[10px] font-bold text-slate-600 bg-white border border-gray-200 px-2 py-1 rounded hover:bg-gray-50">查看详情</button>
+                     <button className="text-[10px] font-bold text-amber-600 hover:bg-amber-50 px-2 py-1 rounded">忽略</button>
+                  </div>
+               </div>
+            </div>
+          </div>
+        );
+
+        const EnvironmentalFactorsCard = () => (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 h-fit">
+                <div className="flex items-center justify-between mb-5">
+                     <div className="flex items-center gap-3">
+                         <div className="bg-sky-100 p-2.5 rounded-xl text-sky-600">
+                             <Sun size={20} fill="currentColor" className="text-sky-500" />
+                         </div>
+                         <div>
+                            <h3 className="font-bold text-slate-900 text-base">环境预测因子</h3>
+                            <p className="text-[11px] font-medium text-slate-400">基于位置的影响因素</p>
+                         </div>
+                     </div>
+                     <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                         <MapPin size={10} className="text-slate-400" />
+                         <span className="text-[10px] font-bold text-slate-600">旧金山</span>
+                     </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 rounded-xl p-4 relative overflow-hidden">
+                         <div className="absolute top-0 right-0 w-20 h-20 bg-yellow-300/20 rounded-full blur-2xl -mr-6 -mt-6"></div>
+                         <div className="flex justify-between items-start mb-3 relative z-10">
+                            <div>
+                                <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full mb-1 inline-block">今日天气</span>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-2xl font-bold text-slate-900">72°F</span>
+                                    <span className="text-xs font-medium text-slate-500">晴朗</span>
+                                </div>
+                            </div>
+                            <Sun size={28} className="text-yellow-500" fill="currentColor" />
+                         </div>
+                         
+                         <div className="bg-white/60 rounded-lg p-2 backdrop-blur-sm border border-sky-100/50">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-bold text-slate-600">外卖配送需求</span>
+                                <span className="text-[10px] font-bold text-emerald-600">+12%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 w-[62%]"></div>
+                            </div>
+                         </div>
+                    </div>
+
+                    <div className="bg-white border border-gray-100 rounded-xl p-3 flex gap-3 items-center hover:border-purple-200 hover:shadow-sm transition-all cursor-pointer">
+                         <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0 text-purple-600">
+                             <CalendarClock size={18} />
+                         </div>
+                         <div className="flex-1">
+                             <div className="flex justify-between items-center mb-0.5">
+                                 <span className="text-xs font-bold text-slate-900">周末大型活动</span>
+                                 <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">周六</span>
+                             </div>
+                             <p className="text-[10px] text-slate-500">市中心音乐节，预计用车需求激增。</p>
+                         </div>
+                    </div>
+                    
+                    <div className="bg-white border border-gray-100 rounded-xl p-3 flex gap-3 items-center hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer">
+                         <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-600">
+                             <CloudRain size={18} />
+                         </div>
+                         <div className="flex-1">
+                             <div className="flex justify-between items-center mb-0.5">
+                                 <span className="text-xs font-bold text-slate-900">周日降雨预警</span>
+                                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">周日</span>
+                             </div>
+                             <p className="text-[10px] text-slate-500">降雨概率 80%，外卖小费通常增加 20%。</p>
+                         </div>
+                    </div>
+
+                </div>
+            </div>
+        );
+
+        const GapFillerCard = ({ 
+          onAccept, 
+          suggestions, 
+          gapAmount, 
+          highlightedPlatform,
+          isHighlighted, 
+          domRef 
+        }) => {
+          if (suggestions.length === 0) return null;
+          
+          const totalAmount = suggestions.reduce((acc, s) => acc + s.amount, 0);
+          const isFullyCovered = totalAmount >= gapAmount;
+          const isUpdated = gapAmount < 315; 
+
+          return (
+            <div 
+              ref={domRef} 
+              className={`mb-4 bg-white rounded-xl border p-5 shadow-sm animate-fade-in relative overflow-hidden group transition-all duration-500
+                ${isHighlighted ? 'border-red-500 ring-4 ring-red-100 shadow-xl scale-[1.01]' : 'border-red-200'}
+              `}
+            >
+                <div className="absolute top-0 right-0 w-64 h-64 bg-red-50 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
+                
+                <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="p-1.5 bg-red-100 text-red-600 rounded-lg">
+                                    <Zap size={16} fill="currentColor" />
+                                </div>
+                                <h4 className="font-bold text-slate-900">
+                                    AI 智能填补方案
+                                </h4>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isFullyCovered ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                   {isFullyCovered ? '覆盖 100% 缺口' : '覆盖部分缺口'}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                {isUpdated 
+                                    ? <span>已为您重新分析：组合 {suggestions.length} 个班次填补剩余的 <span className="font-bold text-red-600">${gapAmount}</span> 缺口，预计收入 <span className="font-bold text-slate-900">${totalAmount}</span>。</span>
+                                    : <span>已为您组合 {suggestions.length} 个高收益班次，预计总收入 <span className="font-bold text-slate-900">${totalAmount}</span>。</span>
+                                }
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => onAccept(suggestions.map(s => s.id))}
+                            className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 whitespace-nowrap"
+                        >
+                            <Plus size={14} /> 一键加入排班
+                        </button>
+                    </div>
+
+                    <div className="space-y-2">
+                        {suggestions.map((item, i) => {
+                            const isHighlightedRow = highlightedPlatform === item.platform;
+                            return (
+                            <div 
+                                key={i} 
+                                className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors
+                                    ${isHighlightedRow ? 'bg-red-50 border-red-300 ring-2 ring-red-100 shadow-md transform scale-[1.01]' : 'bg-slate-50 border-slate-100 hover:border-blue-200'}
+                                `}
+                                ref={(el) => {
+                                    if (isHighlightedRow && el) {
+                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                }}
+                            >
+                                 <div className="flex items-center gap-3">
+                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${item.logoBg}`}>
+                                         {item.platform[0]}
+                                     </div>
+                                     <div>
+                                         <div className="text-xs font-bold text-slate-900">{item.platform}</div>
+                                         <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                            <Calendar size={10} /> {item.date}
+                                         </div>
+                                     </div>
+                                 </div>
+                                 <div className="text-center">
+                                    <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                        <Clock size={10} /> {item.time}
+                                    </div>
+                                 </div>
+                                 <div className="text-right">
+                                     <div className="text-xs font-bold text-slate-900">+${item.amount}</div>
+                                     <div className="text-[10px] text-slate-500">{item.hours}h</div>
+                                 </div>
+                            </div>
+                        )})}
+                    </div>
+                </div>
+            </div>
+          );
+        };
+
+        const ScheduleDetailSidebar = ({ isOpen, onClose, platform, shifts, highlightAmount }) => {
+          const highlightRef = useRef(null);
+
+          useEffect(() => {
+            if (isOpen && highlightAmount && highlightRef.current) {
+                highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, [isOpen, highlightAmount]);
+
+          if (!isOpen) return null;
+
+          return (
+            <>
+              {/* Backdrop */}
+              <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]" onClick={onClose} />
+              
+              {/* Sidebar */}
+              <div className="fixed top-0 right-0 h-full w-[320px] bg-white shadow-2xl border-l border-gray-200 z-[70] p-6 animate-fade-in flex flex-col">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold text-slate-900">{platform} 排班详情</h3>
+                  <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-slate-500">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto">
+                  {shifts.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400">
+                      <Calendar size={32} className="mx-auto mb-3 opacity-30" />
+                      <p>暂无排班记录</p>
+                    </div>
+                  ) : (
+                    shifts.map((shift) => {
+                      const isHighlighted = highlightAmount && shift.amount === highlightAmount;
+                      return (
+                      <div 
+                        key={shift.id} 
+                        ref={isHighlighted ? highlightRef : null}
+                        className={`border rounded-xl p-4 shadow-sm transition-all duration-300
+                          ${isHighlighted 
+                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100 shadow-md transform scale-[1.02]' 
+                            : 'border-gray-100 bg-gray-50/50 hover:border-blue-200'
+                          }
+                        `}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                             <span className={`font-bold ${isHighlighted ? 'text-blue-900' : 'text-slate-900'}`}>{shift.date}</span>
+                             {shift.tags?.map((tag, i) => (
+                               <span key={i} className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">{tag}</span>
+                             ))}
+                          </div>
+                          <span className={`font-bold ${isHighlighted ? 'text-blue-900' : 'text-slate-900'}`}>${shift.amount}</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 text-xs ${isHighlighted ? 'text-blue-700' : 'text-slate-500'} mb-2`}>
+                           <Clock size={12} /> {shift.time} ({shift.hours}h)
+                        </div>
+                      </div>
+                    )})
+                  )}
+                </div>
+                
+                <div className="pt-4 border-t border-gray-100 mt-auto">
+                   <div className="flex justify-between items-center text-sm font-bold text-slate-900">
+                      <span>合计收入</span>
+                      <span>${shifts.reduce((sum, s) => sum + s.amount, 0)}</span>
+                   </div>
+                </div>
+              </div>
+            </>
+          );
+        };
+
+        const ShiftItem = ({ shift, onToggle, isHighlighted }) => {
+          const itemRef = useRef(null);
+
+          useEffect(() => {
+            if (isHighlighted && itemRef.current) {
+                itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, [isHighlighted]);
+
+          return (
+            <div 
+              ref={itemRef}
+              onClick={onToggle}
+              className={`relative p-5 rounded-2xl border transition-all cursor-pointer group bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm 
+              ${shift.selected ? 'border-blue-500 bg-blue-50/50' : ''}
+              ${isHighlighted ? 'ring-4 ring-blue-200 border-blue-500 bg-blue-50 z-10 shadow-lg' : ''}
+              `}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex gap-4">
+                  <div className={`mt-1 w-6 h-6 rounded-full border-2 ${shift.selected ? 'border-blue-500 bg-blue-500' : 'border-gray-300 bg-white'} flex items-center justify-center transition-colors group-hover:border-blue-400`}>
+                      {shift.selected && <Check size={12} className="text-white" strokeWidth={3} />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-slate-900 text-lg">{shift.platform}</span>
+                      {shift.isPeak && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Zap size={10} fill="currentColor" /> 高峰时段</span>}
+                      <span className="bg-gray-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded border border-gray-200">{shift.confidence}% 置信度</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-slate-600 mb-2">
+                      <div className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-400" /><span>{shift.date}</span></div>
+                      <div className="flex items-center gap-1.5"><Clock size={14} className="text-slate-400" /><span>{shift.time}</span></div>
+                    </div>
+                    <div className="text-xs text-orange-600 font-medium flex items-center gap-1">{shift.tags.join(' · ')}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-slate-900">${shift.amount}</div>
+                  <div className="text-xs text-slate-500 mb-1">{shift.hours} 小时</div>
+                  <div className="flex items-center justify-end gap-1 text-[10px] font-bold text-amber-600"><Award size={12} /> +{shift.bonusPoints} 积分</div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const SelectedShiftCard = ({ shift, onRemove }) => {
+          return (
+            <div className="rounded-xl overflow-hidden border border-blue-900/10 shadow-lg animate-fade-in mb-4">
+              <div className="bg-[#1e255e] p-6 text-white relative">
+                <button onClick={onRemove} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors bg-white/10 p-1 rounded-full"><X size={16} /></button>
+                <div className="flex items-start justify-between">
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-xl tracking-tight">{shift.platform}</span>
+                        {shift.isPeak && <span className="bg-amber-400 text-[#1e255e] text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Zap size={10} fill="currentColor" /> 高峰</span>}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-white/80 mb-1">
+                        <div className="flex items-center gap-1.5"><Calendar size={14} className="text-white/60" /><span>{shift.date}</span></div>
+                        <div className="flex items-center gap-1.5"><Clock size={14} className="text-white/60" /><span>{shift.time}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right pr-8">
+                    <div className="text-2xl font-bold">${shift.amount}</div>
+                    <div className="text-xs text-white/60">{shift.hours} 小时</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-blue-50 p-3 px-6 flex items-center gap-2 text-xs text-blue-700 font-bold border-t border-blue-100">
+                  <CheckCircle2 size={14} /> 已选班次已保存到您的日程中。点击 X 可删除班次。
+              </div>
+            </div>
+          );
+        }
+
+        const PlatformItem = ({ platform }) => (
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-xl ${platform.logoBg} flex items-center justify-center`}><Zap className="text-white fill-current" size={20} /></div>
+              <div><h4 className="font-bold text-slate-900">{platform.name}</h4><p className="text-xs text-slate-400">{platform.updateFreq}</p></div>
+            </div>
+            <div className="text-right"><div className="font-bold text-slate-900 text-lg">${platform.avgEarning}</div><div className="text-xs text-slate-400">{platform.period}</div></div>
+          </div>
+        );
+
+        const AchievementCard = ({ icon, title, desc, unlocked }) => (
+          <div className={`p-3 rounded-xl border ${unlocked ? 'bg-white border-amber-100 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'} flex flex-col items-center text-center transition-all hover:shadow-md`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${unlocked ? 'bg-amber-50 text-amber-600' : 'bg-gray-200 text-gray-400'}`}>
+              {unlocked ? icon : <Lock size={16} />}
+            </div>
+            <h4 className="font-bold text-slate-900 text-xs mb-0.5">{title}</h4>
+            <p className="text-[10px] text-slate-500 leading-tight">{desc}</p>
+          </div>
+        );
+
+        const RewardItem = ({ points, title, type, icon }) => (
+          <div className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100/50 transition-all cursor-pointer group h-full relative overflow-hidden">
+            <div className="absolute -right-4 -top-4 w-16 h-16 bg-white rounded-full opacity-50 group-hover:bg-amber-50 transition-colors pointer-events-none"></div>
+            
+            <div className="flex justify-between items-start mb-3 relative z-10">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-indigo-600 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:border-amber-100 group-hover:text-amber-600 transition-all duration-300">
+                {icon}
+              </div>
+              <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full group-hover:bg-amber-100 group-hover:text-amber-700 transition-colors">
+                 {points} 积分
+              </span>
+            </div>
+            
+            <div className="mt-auto relative z-10">
+                <h4 className="font-bold text-slate-900 text-sm mb-0.5 group-hover:text-amber-900 transition-colors">{title}</h4>
+                <p className="text-[10px] text-slate-500 mb-3">{type}</p>
+                
+                <button className="w-full py-2 bg-white border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all flex items-center justify-center gap-1">
+                  <span>立即兑换</span>
+                  <ChevronRight size={10} className="opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+                </button>
+            </div>
+          </div>
+        );
+
+        // --- 5. 聊天组件 (Chat Widget) ---
+
+        const ChatWidget = ({ bills, onPayBill }) => {
+          const [isOpen, setIsOpen] = useState(false);
+          const [messages, setMessages] = useState([
+            {
+              id: '1',
+              sender: 'bot',
+              text: '您好! 👋 我是您的 Visa Flow AI 助手。我会帮助您做出明智的财务决策。您可以问我这样的问题:\n\n• "我能承担 $100 的...支出吗？"\n• "我的账单什么时候到期？"\n• "这周我应该工作多少小时？"',
+              type: 'text',
+              timestamp: new Date()
+            }
+          ]);
+          const [input, setInput] = useState('');
+          const messagesEndRef = useRef(null);
+
+          const scrollToBottom = () => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          };
+
+          useEffect(() => {
+            scrollToBottom();
+          }, [messages, isOpen]);
+
+          useEffect(() => {
+            if (isOpen) {
+              const urgentBill = bills.find(b => b.status === 'pending' && b.daysLeft !== undefined && b.daysLeft <= 3);
+              const hasUrgentPrompt = messages.some(m => m.actionData?.billId === urgentBill?.id);
+              
+              if (urgentBill && !hasUrgentPrompt) {
+                setTimeout(() => {
+                  setMessages(prev => [
+                    ...prev,
+                    {
+                      id: Date.now().toString(),
+                      sender: 'bot',
+                      type: 'action',
+                      text: `📅 提醒：您的 ${urgentBill.name} $${urgentBill.amount} 将在 ${urgentBill.daysLeft} 天后到期。我应该自动支付吗？`,
+                      actionData: {
+                        title: urgentBill.name,
+                        amount: urgentBill.amount,
+                        daysLeft: urgentBill.daysLeft,
+                        billId: urgentBill.id
+                      },
+                      timestamp: new Date()
+                    }
+                  ]);
+                }, 1000);
+              }
+            }
+          }, [isOpen, bills]);
+
+          const handleSend = () => {
+            if (!input.trim()) return;
+            
+            const userMsg = {
+              id: Date.now().toString(),
+              sender: 'user',
+              text: input,
+              type: 'text',
+              timestamp: new Date()
+            };
+            
+            setMessages(prev => [...prev, userMsg]);
+            setInput('');
+
+            setTimeout(() => {
+              let botResponse = {
+                id: (Date.now() + 1).toString(),
+                sender: 'bot',
+                type: 'text',
+                timestamp: new Date()
+              };
+
+              if (input.includes('账单') || input.includes('pay') || input.includes('支付')) {
+                const pendingBills = bills.filter(b => b.status === 'pending');
+                if (pendingBills.length > 0) {
+                     const b = pendingBills[0];
+                     botResponse = {
+                        ...botResponse,
+                        type: 'action',
+                        text: `您有 ${pendingBills.length} 笔待处理账单。${b.name} ($${b.amount}) 即将到期。`,
+                        actionData: {
+                            title: b.name,
+                            amount: b.amount,
+                            daysLeft: b.daysLeft || 0,
+                            billId: b.id
+                        }
+                     };
+                } else {
+                    botResponse.text = "您目前没有即将到期的待处理账单！🎉";
+                }
+              } else if (input.includes('班次') || input.includes('工作')) {
+                botResponse.text = "根据您的目标，建议您本周五晚上接一个 Uber 班次，预计收入 $112。";
+              } else {
+                botResponse.text = "我还在学习中。您可以尝试问我关于账单或排班的问题！";
+              }
+              
+              setMessages(prev => [...prev, botResponse]);
+            }, 800);
+          };
+
+          const handleApproveAction = (actionData) => {
+            const userConfirm = {
+               id: Date.now().toString(),
+               sender: 'user',
+               text: '是的，批准支付',
+               type: 'text',
+               timestamp: new Date()
+            };
+            setMessages(prev => [...prev, userConfirm]);
+
+            setTimeout(() => {
+                onPayBill(actionData.billId);
+                
+                const botSuccess = {
+                    id: (Date.now() + 1).toString(),
+                    sender: 'bot',
+                    type: 'success',
+                    text: `✅ 完美！已为 ${actionData.title} ($${actionData.amount}) 安排支付。\n\n🎁 当此笔支付按时完成时，您将获得 50 Visa 奖励积分！`,
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, botSuccess]);
+            }, 1000);
+          };
+
+          return (
+            <>
+               <button 
+                 onClick={() => setIsOpen(true)}
+                 className={`fixed bottom-6 right-6 w-14 h-14 bg-[#1e255e] rounded-full shadow-2xl flex items-center justify-center text-white transition-all hover:scale-110 z-50 ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
+               >
+                 <Bot size={28} />
+                 <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+               </button>
+
+               {isOpen && (
+                 <div className="fixed bottom-6 right-6 w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden z-50 animate-scale-in origin-bottom-right">
+                    <div className="bg-[#1e255e] p-4 flex items-center justify-between text-white">
+                       <div className="flex items-center gap-3">
+                         <div className="bg-white/10 p-2 rounded-lg">
+                            <Bot size={20} />
+                         </div>
+                         <div>
+                            <h3 className="font-bold text-sm">Visa AI 助手</h3>
+                            <div className="flex items-center gap-1.5 opacity-80">
+                                <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                                <span className="text-[10px]">在线</span>
+                            </div>
+                         </div>
+                       </div>
+                       <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1.5 rounded-lg transition-colors">
+                          <X size={18} />
+                       </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 bg-[#F8FAFC] space-y-4">
+                       {messages.map((msg) => (
+                         <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            {msg.sender === 'bot' && (
+                                <div className="w-8 h-8 rounded-full bg-[#1e255e] flex items-center justify-center text-white flex-shrink-0 mr-2 mt-1">
+                                    <Bot size={14} />
+                                </div>
+                            )}
+                            <div className={`max-w-[80%] space-y-2`}>
+                                {msg.text && (
+                                    <div className={`p-3.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                                        msg.sender === 'user' 
+                                        ? 'bg-[#1e255e] text-white rounded-tr-sm' 
+                                        : 'bg-white text-slate-700 shadow-sm border border-gray-100 rounded-tl-sm'
+                                    }`}>
+                                        {msg.text}
+                                    </div>
+                                )}
+                                
+                                {msg.type === 'action' && msg.actionData && (
+                                    <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="font-bold text-slate-800">{msg.actionData.title}</span>
+                                            <span className="text-red-500 text-xs font-bold">{msg.actionData.daysLeft} 天后到期</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-slate-900 mb-3">${msg.actionData.amount}</div>
+                                        <button 
+                                            onClick={() => handleApproveAction(msg.actionData)}
+                                            className="w-full bg-[#1e255e] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#2a337e] transition-colors"
+                                        >
+                                            是的，批准支付
+                                        </button>
+                                    </div>
+                                )}
+
+                                {msg.type === 'success' && (
+                                    <div className="bg-green-50 p-3 rounded-xl border border-green-100 text-green-800 text-xs flex items-center gap-2">
+                                        <CheckCircle2 size={14} />
+                                        操作成功完成
+                                    </div>
+                                )}
+                            </div>
+                            {msg.sender === 'user' && (
+                                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0 ml-2 mt-1">
+                                    <Users size={14} />
+                                </div>
+                            )}
+                         </div>
+                       ))}
+                       <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="p-3 bg-white border-t border-gray-100 flex gap-2">
+                       <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-gray-50 rounded-lg">
+                           <Plus size={20} />
+                       </button>
+                       <input 
+                         type="text" 
+                         value={input}
+                         onChange={(e) => setInput(e.target.value)}
+                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                         placeholder="问我任何问题..." 
+                         className="flex-1 bg-gray-50 border-none rounded-xl px-4 text-sm focus:ring-2 focus:ring-[#1e255e]/20 outline-none"
+                       />
+                       <button 
+                         onClick={handleSend}
+                         className="p-2 bg-[#1e255e] text-white rounded-xl hover:bg-[#2a337e] transition-colors shadow-md"
+                       >
+                           <Send size={18} />
+                       </button>
+                    </div>
+                 </div>
+               )}
+            </>
+          );
+        };
+
+        // --- 6. 视图组件 (View Components) ---
+
+        const ShiftPlanningView = ({ 
+          isLowBalance, 
+          highlightedPlatform, 
+          highlightedIsUrgent, 
+          onClearHighlight, 
+          autoOpenDetail, 
+          onClearAutoOpen,
+          highlightGapFiller,
+          highlightedSideBarAmount 
+        }) => {
+          const [shifts, setShifts] = useState(INITIAL_SHIFTS);
+          const [scheduledDetailsOpen, setScheduledDetailsOpen] = useState(false);
+          const [selectedPlatformDetail, setSelectedPlatformDetail] = useState(null);
+
+          const GAP_AMOUNT = 315;
+
+          const scheduleRowsRef = useRef({});
+          const gapFillerRef = useRef(null);
+
+          useEffect(() => {
+            if (autoOpenDetail) {
+              setSelectedPlatformDetail(autoOpenDetail);
+              setScheduledDetailsOpen(true);
+              
+              if (scheduleRowsRef.current[autoOpenDetail]) {
+                scheduleRowsRef.current[autoOpenDetail]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+
+              onClearAutoOpen();
+            }
+          }, [autoOpenDetail]);
+
+          useEffect(() => {
+            if (highlightGapFiller && gapFillerRef.current) {
+                gapFillerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, [highlightGapFiller]);
+
+          const BASE_SCHEDULE_STATS = [
+              { platform: 'Uber', hours: 12, earnings: 260, color: 'bg-black text-white' },
+              { platform: 'DoorDash', hours: 6, earnings: 110, color: 'bg-red-600 text-white' },
+              { platform: 'Instacart', hours: 0, earnings: 0, color: 'bg-orange-500 text-white' },
+          ];
+
+          const BASE_SCHEDULED_DETAILS = {
+            'Uber': [
+              { id: 'u1', date: '周一', time: '18:00 - 22:00', amount: 95, hours: 4, tags: ['晚高峰'] },
+              { id: 'u2', date: '周三', time: '08:00 - 12:00', amount: 80, hours: 4 },
+              { id: 'u_target', date: '周五', time: '17:00 - 21:00', amount: 112, hours: 4, tags: ['目标任务'] }, 
+              { id: 'u_task3', date: '周六', time: '12:00 - 18:00', amount: 168, hours: 6, tags: ['信用卡还款'] }, 
+              { id: 'u3', date: '周五', time: '18:00 - 22:00', amount: 85, hours: 4, tags: ['周末前夜'] },
+            ],
+            'DoorDash': [
+              { id: 'd1', date: '周二', time: '11:00 - 14:00', amount: 60, hours: 3, tags: ['午餐高峰'] },
+              { id: 'd_task2', date: '周日', time: '16:00 - 21:00', amount: 140, hours: 5, tags: ['应急基金'] }, 
+              { id: 'd2', date: '周四', time: '11:00 - 14:00', amount: 50, hours: 3 },
+            ],
+            'Instacart': []
+          };
+
+          const handleToggleShift = (id) => {
+            setShifts(prev => prev.map(shift => {
+              if (shift.id === id) {
+                return { ...shift, selected: !shift.selected };
+              }
+              return shift;
+            }));
+          };
+
+          const handleAcceptGapFill = (ids) => {
+            setShifts(prev => prev.map(shift => {
+              if (ids.includes(shift.id)) {
+                return { ...shift, selected: true };
+              }
+              return shift;
+            }));
+          };
+
+          const handleOpenDetails = (platform) => {
+            setSelectedPlatformDetail(platform);
+            setScheduledDetailsOpen(true);
+          };
+
+          const selectedShifts = shifts.filter(s => s.selected);
+          const availableShifts = shifts.filter(s => !s.selected);
+
+          const totalHours = selectedShifts.reduce((acc, s) => acc + s.hours, 0);
+          const totalAmount = selectedShifts.reduce((acc, s) => acc + s.amount, 0);
+          const totalPoints = selectedShifts.reduce((acc, s) => acc + s.bonusPoints, 0);
+
+          const dynamicSchedule = BASE_SCHEDULE_STATS.map(base => {
+              const addedShifts = selectedShifts.filter(s => s.platform === base.platform);
+              const addedHours = addedShifts.reduce((acc, s) => acc + s.hours, 0);
+              const addedEarnings = addedShifts.reduce((acc, s) => acc + s.amount, 0);
+
+              return {
+                  ...base,
+                  hours: base.hours + addedHours,
+                  earnings: base.earnings + addedEarnings,
+                  hasNew: addedShifts.length > 0
+              };
+          });
+          
+          const currentTotal = dynamicSchedule.reduce((acc, curr) => acc + curr.earnings, 0);
+
+          const getPlatformDetails = (platformName) => {
+              const baseDetails = BASE_SCHEDULED_DETAILS[platformName] || [];
+              const newDetails = selectedShifts
+                .filter(s => s.platform === platformName)
+                .map(s => ({
+                    id: s.id,
+                    date: s.date,
+                    time: s.time,
+                    amount: s.amount,
+                    hours: s.hours,
+                    tags: ['新添加']
+                }));
+              return [...baseDetails, ...newDetails];
+          };
+
+          const remainingGap = Math.max(0, GAP_AMOUNT - totalAmount);
+          const isGapCovered = totalAmount >= GAP_AMOUNT;
+
+          const getGapSuggestions = () => {
+            if (remainingGap <= 0) return [];
+            
+            const sorted = [...availableShifts].sort((a, b) => b.amount - a.amount);
+            const suggestions = [];
+            let currentSum = 0;
+            
+            for (const shift of sorted) {
+              if (currentSum < remainingGap) {
+                suggestions.push(shift);
+                currentSum += shift.amount;
+              } else {
+                if (currentSum >= remainingGap) break;
+              }
+            }
+            
+            return suggestions;
+          };
+
+          const gapSuggestions = getGapSuggestions();
+
+          return (
+            <div 
+              className="max-w-6xl mx-auto relative"
+              onMouseMove={() => {
+                if (highlightedPlatform || highlightGapFiller || highlightedSideBarAmount) {
+                   onClearHighlight();
+                }
+              }}
+            >
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-1">班次推荐</h2>
+                <p className="text-slate-500">基于您的财务需求的 AI 智能工作规划</p>
+              </div>
+
+              {isLowBalance && !isGapCovered ? (
+                <>
+                    <div className="bg-white rounded-2xl border border-red-100 p-6 mb-4 shadow-sm relative overflow-hidden transition-all duration-300">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-red-400"></div>
+                        <div className="flex flex-col md:flex-row gap-8 items-start">
+                            <div className="flex-1 pt-2">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500 animate-pulse flex-shrink-0">
+                                        <AlertTriangle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-900">需要额外收入: ${remainingGap}</h3>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                            <span className="text-xs font-bold text-red-600">资金缺口预警</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-slate-500 text-sm leading-relaxed mb-4">
+                                    为了覆盖即将到期的车贷，您还需要赚取 <strong>${remainingGap}</strong>。AI 已为您筛选出高溢价时段，请尽快选择班次。
+                                </p>
+                                <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold">
+                                    <Clock size={14} /> 距离账单到期仅剩 3 天
+                                </div>
+                            </div>
+
+                            <div className="w-full md:w-5/12 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Calendar size={12} /> 本周已排班
+                                    </h4>
+                                    <span className="text-xs font-bold text-slate-900">总计: ${currentTotal}</span>
+                                </div>
+                                <div className="space-y-2">
+                                    {dynamicSchedule.map((item, idx) => (
+                                        <div 
+                                            key={idx} 
+                                            onClick={() => handleOpenDetails(item.platform)}
+                                            ref={el => scheduleRowsRef.current[item.platform] = el}
+                                            className={`flex justify-between items-center p-2.5 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition-all group ${item.hasNew ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${item.color}`}>
+                                                    {item.platform[0]}
+                                                </div>
+                                                <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors">{item.platform}</span>
+                                            </div>
+                                            <div className="text-xs text-slate-500 group-hover:text-slate-700">
+                                                {item.hasNew && <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>}
+                                                <span className="font-bold text-slate-900 text-sm">{item.hours}h</span>
+                                                <span className="mx-1">·</span>
+                                                ${item.earnings}
+                                                <ChevronRight size={12} className="inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <GapFillerCard 
+                      onAccept={handleAcceptGapFill} 
+                      suggestions={gapSuggestions} 
+                      gapAmount={remainingGap} 
+                      highlightedPlatform={highlightedIsUrgent ? highlightedPlatform : null}
+                      isHighlighted={highlightGapFiller}
+                      domRef={gapFillerRef}
+                    />
+                </>
+              ) : (
+                <div className="bg-white rounded-2xl border border-emerald-100 p-6 mb-8 shadow-sm relative overflow-hidden transition-all duration-300">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-emerald-400"></div>
+                    <div className="flex flex-col md:flex-row gap-8 items-start">
+                        <div className="flex-1 pt-2">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 flex-shrink-0 animate-bounce-short">
+                                    <CheckCircle2 size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-900">
+                                        {isLowBalance ? "资金缺口已覆盖! 🎉" : "一切就绪! 🎉"}
+                                    </h3>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        <span className="text-xs font-bold text-emerald-600">
+                                            {isLowBalance ? "排班已达标" : "资金充足"}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+                                {isLowBalance 
+                                    ? `太棒了！您新添加的班次预计收入 $${totalAmount}，足以支付即将到期的车贷账单 ($${GAP_AMOUNT})。`
+                                    : "您的当前排班收入足以支付所有即将到期的账单。您可以选择休息一下，或者继续工作以增加储蓄储备。"
+                                }
+                            </p>
+                            <div className="flex gap-3">
+                                 <button className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-100 transition-colors">
+                                    <Coffee size={16} /> 休息一下
+                                 </button>
+                                 {isLowBalance && (
+                                    <button className="flex items-center gap-2 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-50 transition-colors">
+                                        <Briefcase size={16} /> 继续排班
+                                    </button>
+                                 )}
+                            </div>
+                        </div>
+
+                        <div className="w-full md:w-5/12 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <div className="flex justify-between items-center mb-3">
+                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Calendar size={12} /> 本周已排班
+                                </h4>
+                                <span className="text-xs font-bold text-slate-900">总计: ${currentTotal}</span>
+                            </div>
+                            <div className="space-y-2">
+                                {dynamicSchedule.map((item, idx) => (
+                                    <div 
+                                        key={idx} 
+                                        onClick={() => handleOpenDetails(item.platform)}
+                                        ref={el => scheduleRowsRef.current[item.platform] = el}
+                                        className={`flex justify-between items-center p-2.5 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition-all group ${item.hasNew ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${item.color}`}>
+                                                {item.platform[0]}
+                                            </div>
+                                            <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors">{item.platform}</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500 group-hover:text-slate-700">
+                                            {item.hasNew && <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>}
+                                            <span className="font-bold text-slate-900 text-sm">{item.hours}h</span>
+                                            <span className="mx-1">·</span>
+                                            ${item.earnings}
+                                            <ChevronRight size={12} className="inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-12 gap-8">
+                <div className="col-span-12 lg:col-span-7 space-y-6">
+
+                  {selectedShifts.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-blue-200 p-6 shadow-sm border-l-4 border-l-[#1e255e]">
+                      <div className="mb-4">
+                         <h3 className="font-bold text-slate-900 text-lg">已选班次</h3>
+                         <p className="text-sm text-slate-500 mt-1">
+                           {totalHours} 小时 · ${totalAmount} · +{totalPoints} 积分
+                         </p>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {selectedShifts.map(shift => (
+                           <SelectedShiftCard 
+                             key={shift.id} 
+                             shift={shift} 
+                             onRemove={() => handleToggleShift(shift.id)} 
+                           />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`border rounded-xl p-4 flex gap-3 ${isLowBalance && !isGapCovered ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'}`}>
+                     {isLowBalance && !isGapCovered ? <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={20} /> : <TrendingUp className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />}
+                     <div>
+                       <div className={`text-sm font-bold mb-1 ${isLowBalance && !isGapCovered ? 'text-red-900' : 'text-blue-900'}`}>
+                           {isLowBalance && !isGapCovered ? '策略建议' : 'AI 推荐'}
+                       </div>
+                       <p className={`text-xs leading-relaxed ${isLowBalance && !isGapCovered ? 'text-red-700' : 'text-blue-700'}`}>
+                         {isLowBalance && !isGapCovered
+                            ? `为了在 3 天内凑齐 $${remainingGap}，建议您优先选择带有“高峰时段”标签的 Uber 班次，效率最高。`
+                            : '这些班次基于您的收入历史、需求高峰时段和即将到来的财务义务进行优化。选择班次将其添加到您的日程中。'
+                         }
+                       </p>
+                     </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mt-2">
+                     <h3 className="font-bold text-slate-900">推荐班次</h3>
+                     <span className={`${isLowBalance && !isGapCovered ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'} text-xs font-bold px-2 py-1 rounded`}>
+                        {isLowBalance && !isGapCovered ? '紧急填补' : 'AI 优化'}
+                     </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {availableShifts.map(shift => (
+                      <ShiftItem 
+                        key={shift.id} 
+                        shift={shift} 
+                        onToggle={() => handleToggleShift(shift.id)}
+                        isHighlighted={!highlightedIsUrgent && highlightedPlatform === shift.platform}
+                      />
+                    ))}
+                    {availableShifts.length === 0 && (
+                      <div className="text-center py-10 text-slate-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        已添加所有推荐班次
+                      </div>
+                    )}
+                  </div>
+                  
+                </div>
+
+                <div className="col-span-12 lg:col-span-5 space-y-6">
+                  <EnvironmentalFactorsCard />
+
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                     <div className="flex items-center justify-between mb-6">
+                       <div>
+                         <h3 className="font-bold text-slate-900">您的零工平台</h3>
+                         <p className="text-xs text-slate-400 mt-1">AI 识别自银行数据</p>
+                       </div>
+                       <button className="bg-[#1e255e] text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-[#151b46]">
+                         <Plus size={12} /> 添加平台
+                       </button>
+                     </div>
+                     <div className="space-y-4">
+                       {CONNECTED_PLATFORMS.map(platform => (
+                         <PlatformItem key={platform.id} platform={platform} />
+                       ))}
+                     </div>
+                     <div className="mt-6 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-start gap-2">
+                       <AlertCircle size={14} className="text-blue-600 mt-0.5" />
+                       <p className="text-[10px] text-blue-700 leading-relaxed">
+                         以上是基于您的银行数据得出的 AI 结论。请编辑或添加平台以保持您的资料准确。
+                       </p>
+                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <ScheduleDetailSidebar 
+                isOpen={scheduledDetailsOpen} 
+                onClose={() => setScheduledDetailsOpen(false)} 
+                platform={selectedPlatformDetail || ''}
+                shifts={selectedPlatformDetail ? getPlatformDetails(selectedPlatformDetail) : []}
+                highlightAmount={highlightedSideBarAmount}
+              />
+            </div>
+          );
+        };
+
+        const ExpensesView = ({ 
+          onViewDetails, 
+          bills, 
+          onPayBill, 
+          onToggleAutoPay, 
+          isLowBalance,
+          onViewGapSolution 
+        }) => {
+          let runningBalance = isLowBalance ? 327.56 : 1247.56;
+          
+          const sortedBills = [...bills].sort((a, b) => {
+              if (a.status !== b.status) return a.status === 'pending' ? -1 : 1;
+              return (a.daysLeft || 999) - (b.daysLeft || 999);
+          });
+
+          const suggestionMap = new Map();
+
+          sortedBills.forEach(bill => {
+              if (bill.status === 'pending') {
+                  if (runningBalance >= bill.amount) {
+                      runningBalance -= bill.amount;
+                      suggestionMap.set(bill.id, {
+                          suggestion: isLowBalance ? "当前余额可覆盖，但需注意后续资金流。" : "余额充足，可按时支付",
+                          theme: isLowBalance ? 'blue' : 'green'
+                      });
+                  } else {
+                      const shortage = (bill.amount - runningBalance).toFixed(0);
+                      if (runningBalance > 0) {
+                           suggestionMap.set(bill.id, {
+                              suggestion: `⚠️ 资金缺口 $${shortage}。建议立即接单填补。`,
+                              theme: 'red'
+                          });
+                          runningBalance = 0; 
+                      } else {
+                           suggestionMap.set(bill.id, {
+                              suggestion: `⚠️ 资金严重不足，建议申请延期支付。`,
+                              theme: 'red'
+                          });
+                      }
+                  }
+              }
+          });
+
+          const finalBills = bills.map(bill => {
+            if (suggestionMap.has(bill.id)) {
+                const data = suggestionMap.get(bill.id);
+                return { 
+                    ...bill, 
+                    aiSuggestion: data.suggestion,
+                    aiTheme: data.theme
+                };
+            }
+            return bill;
+          });
+
+          const paidBills = finalBills.filter(b => b.status === 'paid');
+          const pendingBills = finalBills.filter(b => b.status === 'pending');
+          const paidCount = paidBills.length;
+          const pendingCount = pendingBills.length;
+          const paidAmount = paidBills.reduce((acc, b) => acc + b.amount, 0);
+          const totalAmount = finalBills.reduce((acc, b) => acc + b.amount, 0);
+          
+          return (
+          <div>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-1">支出日程</h2>
+                <p className="text-slate-500">跟踪和管理您的账单</p>
+              </div>
+              <button 
+                onClick={onViewDetails}
+                className="bg-[#1e255e] text-white px-4 py-2.5 rounded-xl font-medium shadow-lg hover:bg-[#151b46] transition-colors flex items-center gap-2 text-sm"
+              >
+                <FileText size={16} /> 查看账单详情
+              </button>
+            </div>
+
+            {isLowBalance && (
+                <CriticalAlert 
+                    message="注意：预计未来 7 天内的支出 ($480) 超过了您的当前可用余额。请检查待处理账单。" 
+                    onAction={onViewGapSolution}
+                />
+            )}
+
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-center justify-between mb-8">
+               <div className="flex items-center gap-3">
+                 <div className="bg-amber-100 p-2 rounded-lg text-amber-600"><Award size={20} /></div>
+                 <div><div className="text-amber-900 font-bold text-sm">按时支付每笔账单获得 50 积分</div><div className="text-amber-700 text-xs">本月可获得 250 积分奖励</div></div>
+               </div>
+               <div className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded">活跃</div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-8">
+              <div className="col-span-12 lg:col-span-8 space-y-8">
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                  <h3 className="font-bold text-slate-900 mb-6">月度支付进度</h3>
+                  <div className="flex justify-between text-sm font-medium mb-2"><span className="text-slate-500">本月已支付账单</span><span className="text-slate-900 font-bold">${paidAmount} / ${totalAmount}</span></div>
+                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden mb-6"><div className="h-full bg-[#1e255e] transition-all duration-1000 ease-out" style={{ width: `${(paidAmount/totalAmount)*100}%` }}></div></div>
+                  <div className="grid grid-cols-3 gap-4">
+                     <div className="border border-gray-100 rounded-xl p-4"><div className="flex items-center gap-2 text-emerald-600 mb-1"><CheckCircle2 size={16} /><span className="text-xs font-bold">已支付</span></div><div className="text-2xl font-bold text-slate-900">{paidCount}</div></div>
+                     <div className="border border-gray-100 rounded-xl p-4"><div className="flex items-center gap-2 text-amber-600 mb-1"><Clock size={16} /><span className="text-xs font-bold">待处理</span></div><div className="text-2xl font-bold text-slate-900">{pendingCount}</div></div>
+                     <div className="border border-gray-100 rounded-xl p-4 bg-slate-50"><div className="flex items-center gap-2 text-slate-500 mb-1"><DollarSign size={16} /><span className="text-xs font-bold">剩余</span></div><div className="text-2xl font-bold text-slate-900">${totalAmount - paidAmount}</div></div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3"><h3 className="font-bold text-slate-900">订阅与账单</h3><span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">{bills.length}个有效</span></div>
+                    <button className="bg-[#1e255e] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#151b46] flex items-center gap-1"><Plus size={14} /> 添加账单</button>
+                  </div>
+                  <p className="text-xs text-slate-400 mb-4">AI 检测到这些定期付款</p>
+                  <div className="space-y-4">{finalBills.map(bill => <BillItem key={bill.id} bill={bill} onToggleAutoPay={onToggleAutoPay} />)}</div>
+                </div>
+              </div>
+              <div className="col-span-12 lg:col-span-4 space-y-8">
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm sticky top-6">
+                  <h3 className="font-bold text-slate-900 mb-6">支出细分</h3>
+                  <div className="space-y-5 mb-8">
+                    {[{ label: '房租', pct: 63, color: 'bg-[#1e255e]' }, { label: '车贷', pct: 20, color: 'bg-[#1e255e]' }, { label: '保险', pct: 8, color: 'bg-slate-300' }, { label: '电费', pct: 5, color: 'bg-[#1e255e]' }, { label: '话费', pct: 4, color: 'bg-slate-300' }].map((item, i) => (
+                      <div key={i}><div className="flex justify-between text-xs font-medium text-slate-600 mb-1.5"><span>{item.label}</span><span>{item.pct}%</span></div><div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.pct}%` }}></div></div></div>
+                    ))}
+                  </div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4"><div className="flex items-center gap-2 text-blue-700 font-bold text-xs mb-2"><TrendingUp size={14} /> 支出分析</div><p className="text-blue-800 text-xs leading-relaxed">您的固定支出占收入的 67%。考虑减少成本或增加收入的方法。</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          );
+        };
+
+        const BillDetailsView = ({ onBack, bills, onToggleAutoPay }) => {
+          const [filter, setFilter] = useState('all');
+          
+          const paidBills = bills.filter(b => b.status === 'paid');
+          const pendingBills = bills.filter(b => b.status === 'pending');
+          const overdueBills = bills.filter(b => b.status === 'overdue');
+
+          const totalAmount = bills.reduce((acc, b) => acc + b.amount, 0);
+          const paidAmount = paidBills.reduce((acc, b) => acc + b.amount, 0);
+          const pendingAmount = pendingBills.reduce((acc, b) => acc + b.amount, 0);
+
+          let displayedBills = bills;
+          if (filter === 'paid') displayedBills = paidBills;
+          if (filter === 'pending') displayedBills = pendingBills;
+          if (filter === 'overdue') displayedBills = overdueBills;
+
+          return (
+            <div>
+              <div className="mb-8"><button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-medium mb-4 transition-colors"><ArrowLeft size={18} /> 返回支出概览</button><h2 className="text-3xl font-bold text-slate-900">账单详情</h2><p className="text-slate-500 mt-1">查看和管理您的所有账单</p></div>
+              <div className="grid grid-cols-4 gap-4 mb-8">
+                  <BillSummaryCard onClick={() => setFilter('all')} label="全部账单" count={bills.length} amount={`总金额 $${totalAmount}`} status="all" active={filter === 'all'} />
+                  <BillSummaryCard onClick={() => setFilter('paid')} label="已支付" count={paidBills.length} amount={`$${paidAmount}`} status="paid" active={filter === 'paid'} />
+                  <BillSummaryCard onClick={() => setFilter('pending')} label="待处理" count={pendingBills.length} amount={`$${pendingAmount}`} status="pending" active={filter === 'pending'} />
+                  <BillSummaryCard onClick={() => setFilter('overdue')} label="逾期" count={overdueBills.length} amount="需要立即处理" status="overdue" active={filter === 'overdue'} />
+              </div>
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                    <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>全部 ({bills.length})</button>
+                    <button onClick={() => setFilter('paid')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'paid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>已支付 ({paidBills.length})</button>
+                    <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'pending' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>待处理 ({pendingBills.length})</button>
+                    <button onClick={() => setFilter('overdue')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'overdue' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>逾期 (0)</button>
+                </div>
+                <button className="flex items-center gap-2 border border-gray-200 bg-white px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-gray-50"><ArrowUpDown size={14} /> 排序: 日期</button>
+              </div>
+              
+              <div className="space-y-6">
+                {displayedBills.map(bill => {
+                    if (bill.status === 'paid' && (filter === 'all' || filter === 'paid')) {
+                         return <DetailedBillCard key={bill.id} bill={bill} />;
+                    }
+                    return <BillItem key={bill.id} bill={bill} onToggleAutoPay={onToggleAutoPay} />;
+                })}
+                {displayedBills.length === 0 && (
+                    <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-gray-200">
+                        没有找到符合条件的账单
+                    </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const AchievementsView = () => {
+          return (
+            <div>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-1">成就中心</h2>
+                <p className="text-slate-500">追踪您的进度并兑换专属奖励</p>
+              </div>
+
+              <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-5 text-white mb-8 shadow-xl shadow-orange-200 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                <div className="flex flex-col md:flex-row justify-between items-end relative z-10 gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1 opacity-90">
+                      <Crown size={16} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">当前等级</span>
+                    </div>
+                    <h1 className="text-3xl font-bold mb-1">白银会员</h1>
+                    <p className="text-xs opacity-90 max-w-lg leading-relaxed">
+                      您已击败 65% 的用户！再获得 <span className="font-bold text-white border-b border-white/40">550 积分</span> 即可升级为黄金会员，享受提现免手续费特权。
+                    </p>
+                  </div>
+                  <div className="text-left md:text-right w-full md:w-auto bg-white/10 px-4 py-3 rounded-xl backdrop-blur-sm border border-white/10 min-w-[120px]">
+                    <div className="text-[10px] opacity-80 mb-0.5">可用积分</div>
+                    <div className="text-3xl font-bold tracking-tight">2,450</div>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex justify-between text-[10px] font-medium opacity-80 mb-1">
+                    <span>当前进度</span>
+                    <span>3,000 目标</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-black/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-white/90 w-[82%] shadow-[0_0_10px_rgba(255,255,255,0.5)] relative overflow-hidden">
+                       <div className="absolute inset-0 bg-white/30 w-full h-full animate-shimmer"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-6">
+                <div className="col-span-12 space-y-6">
+                  
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
+                        <Trophy size={18} className="text-amber-500" /> 
+                        我的成就
+                      </h3>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-full">已解锁 3/8</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <AchievementCard 
+                        icon={<Zap size={20} />} 
+                        title="全勤达人" 
+                        desc="连续 7 天完成至少 1 个任务" 
+                        unlocked={true} 
+                      />
+                      <AchievementCard 
+                        icon={<Wallet size={20} />} 
+                        title="储蓄先锋" 
+                        desc="单月储蓄金额超过 $500" 
+                        unlocked={true} 
+                      />
+                      <AchievementCard 
+                        icon={<Star size={20} />} 
+                        title="五星好评" 
+                        desc="在任意平台获得 100 个五星评价" 
+                        unlocked={true} 
+                      />
+                      <AchievementCard 
+                        icon={<TrendingUp size={20} />} 
+                        title="收入翻倍" 
+                        desc="单周收入环比增长 100%" 
+                        unlocked={false} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                     <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
+                        <Gift size={18} className="text-indigo-500" /> 
+                        热门兑换
+                      </h3>
+                      <button className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-colors">查看全部</button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <RewardItem icon={<Fuel size={20} />} title="$10 加油卡" type="Shell / Exxon" points={1000} />
+                      <RewardItem icon={<Coffee size={20} />} title="$5 咖啡券" type="Starbucks" points={500} />
+                      <RewardItem icon={<Zap size={20} />} title="提现费免除" type="一次性特权" points={800} />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // --- 7. 主程序 (Main App) ---
+
+        function App() {
+          const [currentView, setCurrentView] = useState('dashboard');
+          const [isLowBalance, setIsLowBalance] = useState(true); 
+          const [highlightedPlatform, setHighlightedPlatform] = useState(null);
+          const [highlightedIsUrgent, setHighlightedIsUrgent] = useState(false);
+          const [autoOpenDetail, setAutoOpenDetail] = useState(null);
+          const [highlightGapFiller, setHighlightGapFiller] = useState(false);
+          const [showDebug, setShowDebug] = useState(false); 
+          const [highlightedSideBarAmount, setHighlightedSideBarAmount] = useState(null); 
+          
+          const [bills, setBills] = useState(INITIAL_BILLS);
+          const [tasks, setTasks] = useState(isLowBalance ? [URGENT_TASK, ...INITIAL_TASKS] : INITIAL_TASKS);
+          const [points, setPoints] = useState(2450);
+          const [toast, setToast] = useState({ message: '', visible: false, type: 'success' });
+          const toastTimeout = useRef(null);
+
+          useEffect(() => {
+            setTasks(isLowBalance ? [URGENT_TASK, ...INITIAL_TASKS] : INITIAL_TASKS);
+          }, [isLowBalance]);
+
+          const showToast = (message, type = 'success') => {
+            if (toastTimeout.current) clearTimeout(toastTimeout.current);
+            setToast({ message, visible: true, type });
+            toastTimeout.current = setTimeout(() => {
+              setToast(prev => ({ ...prev, visible: false }));
+            }, 3000);
+          };
+
+          const handleToggleAutoPay = (id) => {
+            const targetBill = bills.find(b => b.id === id);
+            if (!targetBill) return;
+            
+            const willEnable = !targetBill.autoPay;
+            setBills(prev => prev.map(bill => {
+              if (bill.id === id) {
+                return { ...bill, autoPay: !bill.autoPay };
+              }
+              return bill;
+            }));
+            showToast(willEnable ? "AI 自动支付已开启" : "自动支付已取消", willEnable ? 'success' : 'default');
+          };
+
+          const handlePayBill = (id) => {
+            setBills(prev => prev.map(bill => {
+                if (bill.id === id) {
+                    return {
+                        ...bill,
+                        status: 'paid',
+                        paymentDate: '今天',
+                        paymentMethod: 'AI 助手',
+                        accountStatus: '正常',
+                        daysLeft: undefined
+                    };
+                }
+                return bill;
+            }));
+            setPoints(prev => prev + 50);
+          };
+
+          const toggleSimulation = () => {
+              setIsLowBalance(!isLowBalance);
+          };
+
+          const handlePlanClick = (platform, type, isUrgent = false, amount) => {
+              if (type === 'scheduled') {
+                setAutoOpenDetail(platform);
+                setHighlightedPlatform(null); 
+                setHighlightedIsUrgent(false);
+                setHighlightedSideBarAmount(amount || null); 
+              } else {
+                setHighlightedPlatform(platform);
+                setHighlightedIsUrgent(isUrgent);
+                setAutoOpenDetail(null);
+                setHighlightedSideBarAmount(null);
+              }
+              setCurrentView('shift-planning');
+          };
+
+          const handleViewGapSolution = () => {
+              setCurrentView('shift-planning');
+              setTimeout(() => setHighlightGapFiller(true), 100); 
+          };
+
+          const clearHighlight = () => {
+              setHighlightedPlatform(null);
+              setHighlightedIsUrgent(false);
+              setHighlightGapFiller(false);
+              setHighlightedSideBarAmount(null); 
+          };
+          
+          const clearAutoOpen = () => {
+              setAutoOpenDetail(null);
+          };
+
+          return (
+            <div className="min-h-screen font-sans text-slate-600 flex">
+              <Sidebar currentView={currentView} onChangeView={setCurrentView} />
+              
+              <main className="flex-1 ml-64 p-8 max-w-7xl mx-auto">
+                
+                {currentView === 'dashboard' && (
+                   <div className="animate-fade-in">
+                     <header className="flex justify-between items-end mb-8">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1"><h2 className="text-2xl font-bold text-slate-900">您的财务任务</h2><span className="bg-[#1e255e] text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full">{tasks.length}</span><span className="bg-orange-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full flex gap-0.5"><Zap size={10} fill="currentColor" /> 3</span></div>
+                        <p className="text-slate-500">基于您目标的个性化工作计划</p>
+                      </div>
+                      <div className="flex gap-4">
+                        <button 
+                            onClick={toggleSimulation}
+                            className="bg-white p-2.5 rounded-xl border border-gray-200 text-slate-400 hover:text-slate-600 relative"
+                            title="Toggle Low Balance Simulation"
+                        >
+                            <Bell size={20} />
+                            {isLowBalance && <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>}
+                        </button>
+                        <button className="bg-[#1e255e] text-white px-4 py-2.5 rounded-xl font-medium shadow-lg hover:bg-[#151b46] transition-colors flex items-center gap-2"><Settings size={18} /> 自定义</button>
+                      </div>
+                    </header>
+
+                    {isLowBalance && <CriticalAlert onAction={handleViewGapSolution} />}
+
+                    <div className="mb-8">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <StatCard 
+                            label="当前余额" 
+                            value={isLowBalance ? "$327.56" : "$1,247.56"} 
+                            subtext="支票账户" 
+                            icon={<Wallet size={16} className="text-slate-600" />} 
+                            colorClass="bg-slate-100" 
+                            variant={isLowBalance ? 'danger' : 'normal'}
+                        />
+                        <StatCard label="未来 7 天" value="$710" subtext="AI 预测收入" icon={<TrendingUp size={16} className="text-emerald-600" />} colorClass="bg-emerald-100" />
+                        <StatCard label="到期账单" value={`$${bills.filter(b => b.status === 'pending').reduce((a,b) => a+b.amount, 0)}`} subtext="待处理" icon={<CalendarClock size={16} className="text-blue-600" />} colorClass="bg-blue-100" />
+                        <StatCard 
+                            label="支出趋势" 
+                            value="↓ 12%" 
+                            subtext="比上月少支 $150" 
+                            icon={<TrendingUp size={16} className="text-indigo-600 rotate-180" />} 
+                            colorClass="bg-indigo-100" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-12 lg:grid-cols-7 gap-6 items-stretch">
+                      <div className="col-span-12 lg:col-span-2 flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-slate-800">智能分析</h3>
+                        </div>
+                        <div className="flex-1 flex flex-col gap-6">
+                            <div className="flex-1">
+                                <AICard className="h-full" isLowBalance={isLowBalance} />
+                            </div>
+                        </div>
+                      </div>
+
+                      <div className="col-span-12 lg:col-span-5 flex flex-col">
+                         <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-slate-800">活跃任务</h3>
+                            <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full">2/3 已完成</span>
+                         </div>
+                         <div className="space-y-4 flex-1">
+                            {tasks.map(task => (
+                              <TaskCard 
+                                key={task.id} 
+                                task={task} 
+                                onPlanClick={handlePlanClick} 
+                              />
+                            ))}
+                         </div>
+                      </div>
+                    </div>
+                   </div>
+                )}
+
+                {currentView === 'expenses' && (
+                  <ExpensesView 
+                    onViewDetails={() => setCurrentView('bill-details')} 
+                    bills={bills} 
+                    onPayBill={handlePayBill} 
+                    onToggleAutoPay={handleToggleAutoPay} 
+                    isLowBalance={isLowBalance} 
+                    onViewGapSolution={handleViewGapSolution}
+                  />
+                )}
+
+                {currentView === 'bill-details' && (
+                  <BillDetailsView onBack={() => setCurrentView('expenses')} bills={bills} onToggleAutoPay={handleToggleAutoPay} />
+                )}
+
+                {currentView === 'shift-planning' && (
+                  <ShiftPlanningView 
+                    isLowBalance={isLowBalance} 
+                    highlightedPlatform={highlightedPlatform}
+                    highlightedIsUrgent={highlightedIsUrgent}
+                    onClearHighlight={clearHighlight}
+                    autoOpenDetail={autoOpenDetail}
+                    onClearAutoOpen={clearAutoOpen}
+                    highlightGapFiller={highlightGapFiller}
+                    highlightedSideBarAmount={highlightedSideBarAmount}
+                  /> 
+                )}
+
+                {currentView === 'achievements' && (
+                  <AchievementsView />
+                )}
+
+              </main>
+
+              <ChatWidget bills={bills} onPayBill={handlePayBill} />
+              
+              <div className="fixed top-6 right-8 z-50 flex flex-col items-end pointer-events-none gap-2">
+                <div 
+                    className={`pointer-events-auto transition-all duration-300 transform origin-top-right
+                        ${showDebug ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-4 pointer-events-none h-0'}
+                    `}
+                >
+                    <div className="bg-white/90 backdrop-blur-sm border border-gray-200 p-1.5 rounded-xl shadow-lg flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-slate-400 px-2 uppercase tracking-wider">预览模式</span>
+                        <button 
+                            onClick={() => setIsLowBalance(false)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!isLowBalance ? 'bg-emerald-100 text-emerald-700 shadow-sm' : 'text-slate-500 hover:bg-gray-50'}`}
+                        >
+                            <span className="flex items-center gap-1.5"><CheckCircle2 size={12} /> 资金充足</span>
+                        </button>
+                        <button 
+                            onClick={() => setIsLowBalance(true)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isLowBalance ? 'bg-red-100 text-red-700 shadow-sm' : 'text-slate-500 hover:bg-gray-50'}`}
+                        >
+                            <span className="flex items-center gap-1.5"><AlertCircle size={12} /> 资金不足</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => setShowDebug(!showDebug)}
+                    className={`pointer-events-auto w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-all duration-300
+                        ${showDebug 
+                            ? 'bg-white text-slate-600 border-gray-200 hover:bg-slate-50' 
+                            : 'bg-white/50 text-slate-400 border-transparent hover:bg-white hover:text-slate-600 hover:border-gray-200 hover:shadow-md'
+                        }
+                    `}
+                    title={showDebug ? "隐藏控制" : "显示模拟控制"}
+                >
+                    {showDebug ? <X size={14} /> : <Settings size={14} />}
+                </button>
+              </div>
+              
+              <Toast message={toast.message} visible={toast.visible} type={toast.type} />
+            </div>
+          );
+        }
+
+        // --- 渲染逻辑 ---
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            const root = createRoot(rootElement);
+            root.render(<App />);
+        }
+    </script>
+</body>
+</html>
